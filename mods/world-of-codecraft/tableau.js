@@ -10,6 +10,7 @@ import { div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { spaces, agents, run, props, openOverlay, checking, shared } from "herdr";
 import { Worktrees } from "./worktrees.js";
+import { PastQuests, ago } from "./pastquests.js";
 import { QUEST_MENU } from "./questmenu.js";
 import { newQuestSize } from "./newquest.js";
 import { district, clip, heroOf } from "./kit.js";
@@ -27,6 +28,11 @@ export default class Tableau {
     this.wt = new Worktrees();
     this.folded = new Set();
     try { this.folded = new Set(JSON.parse(localStorage.getItem("worktrees.folded") ?? "[]")); } catch {}
+    this.past = new PastQuests();
+    this.pastOpen = new Set(); // districts whose past quests are unfolded
+    this.pastAll = new Set(); // ...showing every one, not just the newest
+    this.pastArch = new Set(); // ...with their archived ones unfolded
+    try { this.pastOpen = new Set(JSON.parse(localStorage.getItem("past.open") ?? "[]")); } catch {}
     this.done = new Set(); // districts whose completed quests are unfolded
     try { this.done = new Set(JSON.parse(localStorage.getItem("completed.open") ?? "[]")); } catch {}
     if (!props()?.demo && !checking()) this.wt.start(cx);
@@ -91,9 +97,71 @@ export default class Tableau {
         })
         .child(txt("✓", 12, P.goldLo, 800).flex_none())
         .child(txt(clip(name, 32), 13, P.dim, 700).flex_1().min_w(0).truncate())
-        .child(h_flex().flex_none().gap(2).opacity(0.6).children(heroes.slice(0, 3).map((a) => portrait(heroOf(a.address, a.program), 22))));
+        .child(h_flex().flex_none().gap(2).children(heroes.slice(0, 3).map((a) => portrait(heroOf(a.address, a.program), 22))));
     };
     return v_flex().gap(0).pt(2).child(head).when(open, (e) => e.children(done.map(row)));
+  }
+
+  // Past quests: earlier Claude Code sessions in this district's folders, not running now. Folded by
+  // default; unfolding looks them up. Click one: resume it as a new quest. ×: archive it (↺: bring back).
+  pastQuests(sp, cx) {
+    if (props()?.demo) return null;
+    const open = this.pastOpen.has(sp.id);
+    const d = this.past.of(sp);
+    if (open) this.past.want(sp, this.wt?.of(sp), cx);
+    const fold = (set, key, id) => (_e, cx) => {
+      set.has(id) ? set.delete(id) : set.add(id);
+      if (key) try { localStorage.setItem(key, JSON.stringify([...set])); } catch {}
+      cx.notify();
+    };
+    const live = (d?.list ?? []).filter((x) => !this.past.isArchived(x.id));
+    const gone = (d?.list ?? []).filter((x) => this.past.isArchived(x.id));
+    const head = h_flex().id(`passees-${sp.id}`).h(22).px(5).gap(5).items_center().cursor_pointer().rounded(2)
+      .hover((s) => s.bg("#ffffff10"))
+      .tooltip(t("pastTip"))
+      .on_click(fold(this.pastOpen, "past.open", sp.id))
+      .child(txt(open ? "▾" : "▸", 12, P.dim, 700).w(10).flex_none())
+      .child(txt(d ? t("past", live.length) : t("pastN"), 13, P.muted, 800).flex_1());
+    if (!open) return v_flex().gap(0).pt(2).child(head);
+    const row = (x, archived) => {
+      const name = x.title || x.prompt || x.id.slice(0, 8);
+      return h_flex().id(`passee-${x.id}`).h(24).pl(17).pr(2).gap(6).items_center().rounded(2).cursor_pointer()
+        .hover((s) => s.bg("#ffffff10"))
+        .tooltip(t("pastQuestTip", x.title, x.prompt, ago(x.mtime), x.turns, x.cwd))
+        .on_click(() => {
+          if (!sp.active) run("space.select", { id: sp.id });
+          run("tab.new", { space: sp.id, folder: x.folder, name: clip(x.title || t("pastResumed"), 40), argv: ["claude", "--resume", x.id] });
+          this.past.setArchived(x.id, false);
+          this.past.stale(sp);
+        })
+        .child(txt("❧", 13, archived ? P.faint : P.goldLo, 700).flex_none())
+        .child(txt(clip(name, 40), 13, archived ? P.faint : P.dim, 700).flex_1().min_w(0).truncate())
+        .child(txt(ago(x.mtime), 12, P.faint, 700).flex_none())
+        .child(div().id(`passee-x-${x.id}`).w(16).h(18).flex_none().flex().items_center().justify_center().rounded(2)
+          .hover((s) => s.bg("#ffffff20"))
+          .tooltip(archived ? t("pastUnarchive") : t("pastArchive"))
+          .on_click((_e, cx) => { cx.stop_propagation(); this.past.setArchived(x.id, !archived); cx.notify(); })
+          .child(txt(archived ? "↺" : "×", 13, P.faint, 800)));
+    };
+    const SHOW = 8;
+    const all = this.pastAll.has(sp.id);
+    const shown = all ? live : live.slice(0, SHOW);
+    let body = v_flex().gap(0).children(shown.map((x) => row(x, false)));
+    if (!d) body = body.child(txt(t("pastLooking"), 12, P.dim, 700).pl(17));
+    else if (d.error && !d.list.length) body = body.child(txt(t("pastFailed"), 12, P.blocked, 700).pl(17).tooltip(d.error));
+    else if (!live.length) body = body.child(txt(t("pastNone"), 12, P.dim, 700).pl(17));
+    if (live.length > SHOW) body = body.child(h_flex().id(`passees-plus-${sp.id}`).h(20).pl(17).cursor_pointer().rounded(2)
+      .hover((s) => s.bg("#ffffff10")).on_click(fold(this.pastAll, null, sp.id))
+      .child(txt(all ? t("pastFewer") : t("wtMore", live.length - SHOW), 12, P.dim, 700)));
+    if (gone.length) {
+      const ao = this.pastArch.has(sp.id);
+      body = body.child(h_flex().id(`archives-${sp.id}`).h(20).pl(17).gap(5).items_center().cursor_pointer().rounded(2)
+        .hover((s) => s.bg("#ffffff10")).on_click(fold(this.pastArch, null, sp.id))
+        .child(txt(ao ? "▾" : "▸", 11, P.faint, 700).w(10).flex_none())
+        .child(txt(t("pastArchived", gone.length), 12, P.faint, 700)));
+      if (ao) body = body.children(gone.map((x) => row(x, true)));
+    }
+    return v_flex().gap(0).pt(2).child(head).child(body);
   }
 
   heading(text, extra) {
@@ -136,7 +204,7 @@ export default class Tableau {
     return line;
   }
 
-  district(sp, all) {
+  district(sp, all, cx) {
     const d = district(sp);
     const heroes = all.filter((a) => a.space === sp.id);
     const tabs = sp.tabs.filter((t) => !t.settled || t.active); // a shown tab is never settled for long
@@ -164,6 +232,8 @@ export default class Tableau {
     inner = inner.child(v_flex().gap(1).children(tabs.map((t) => this.quest(sp, t, heroes.filter((a) => a.tab === t.id)))));
     const done = this.completed(sp, all);
     if (done) inner = inner.child(done);
+    const past = this.pastQuests(sp, cx);
+    if (past) inner = inner.child(past);
     const trees = this.worktrees(sp);
     if (trees) inner = inner.child(trees);
 
@@ -175,7 +245,7 @@ export default class Tableau {
     return card;
   }
 
-  render(_cx) {
+  render(cx) {
     const demo = Boolean(props()?.demo); // screenshots: generic districts instead of the person's
     const all = demo ? DEMO_AGENTS : agents();
     const list = demo ? DEMO_SPACES : spaces();
@@ -188,7 +258,7 @@ export default class Tableau {
       .child(v_flex().absolute().left(T).right(T).top(T).bottom(T)
         .child(this.heading(t("districts"), t("sessions", sessions)))
         .child(v_flex().id("quartiers").flex_1().min_h(0).overflow_y_scrollbar().px(2).pb(10)
-          .children(list.map((sp) => this.district(sp, all)))
+          .children(list.map((sp) => this.district(sp, all, cx)))
           .child(h_flex().mx(2).mt(10).gap(6)
             .child(add("nouvelle-quete", t("newQuest"), t("newQuestTip"), () => {
               const sp = list.find((s) => s.active);

@@ -16,7 +16,7 @@ const SAFE = ["--no-optional-locks", "-c", "core.fsmonitor=false", "-c", "safe.b
 const base = (p) => p.replace(/\/+$/, "").split("/").pop();
 
 // Where a space is now: its first terminal's live folder, else where it was made.
-function folderOf(sp, ps) {
+export function folderOf(sp, ps) {
   const tabs = new Set((sp.tabs ?? []).map((t) => t.id));
   return ps.find((p) => tabs.has(p.tab) && p.cwd)?.cwd || sp.folder || null;
 }
