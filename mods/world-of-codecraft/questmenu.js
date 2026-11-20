@@ -1,6 +1,7 @@
 // The quest menu: right-click a quest (tab) on the board. Opened as a popup with
 // props { role: "questmenu", tab, space, overlay }. Rename, reset the name, move it up or
-// down the board, close it (a second click confirms: closing ends the quest's terminals).
+// down the board, mark it completed (settled: tucked under "Completed quests", still running)
+// or bring it back, close it (a second click confirms: closing ends the quest's terminals).
 // ↑/↓ move, Enter runs, Esc closes.
 
 import { div } from "gpui-kit";
@@ -10,7 +11,7 @@ import { clip } from "./kit.js";
 import { t } from "./i18n.js";
 import { P, title, txt, well } from "./ui.js";
 
-export const QUEST_MENU = { width: 220, height: 232 };
+export const QUEST_MENU = { width: 220, height: 262 };
 
 export class QuestMenu {
   init(_props, cx) {
@@ -24,9 +25,10 @@ export class QuestMenu {
   where() {
     const p = props() ?? {};
     const sp = spaces().find((s) => s.id === p.space);
-    const tabs = (sp?.tabs ?? []).filter((x) => !x.settled || x.active);
+    const tab = (sp?.tabs ?? []).find((x) => x.id === p.tab);
+    const tabs = (sp?.tabs ?? []).filter((x) => !x.settled);
     const i = tabs.findIndex((x) => x.id === p.tab);
-    return { sp, tab: tabs[i], first: i === 0, last: i === tabs.length - 1 };
+    return { sp, tab, first: i <= 0, last: i === tabs.length - 1 || i < 0 };
   }
 
   items() {
@@ -38,6 +40,9 @@ export class QuestMenu {
       ...(tab.named ? [{ key: "reset", label: t("qmReset"), cmd: "tab.rename", args: { id, name: "" } }] : []),
       ...(!first ? [{ key: "up", label: t("qmUp"), cmd: "tab.move", args: { id, by: -1 } }] : []),
       ...(!last ? [{ key: "down", label: t("qmDown"), cmd: "tab.move", args: { id, by: 1 } }] : []),
+      tab.settled
+        ? { key: "resume", label: t("qmResume"), cmd: "tab.unsettle", args: { id } }
+        : { key: "complete", label: t("qmComplete"), cmd: "tab.settle", args: { id } },
       { key: "close", label: this.arm ? t("qmCloseSure") : t("qmClose"), cmd: "tab.close", args: { id }, danger: true },
     ];
   }

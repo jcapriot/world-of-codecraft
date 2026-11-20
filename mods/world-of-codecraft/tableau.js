@@ -27,6 +27,8 @@ export default class Tableau {
     this.wt = new Worktrees();
     this.folded = new Set();
     try { this.folded = new Set(JSON.parse(localStorage.getItem("worktrees.folded") ?? "[]")); } catch {}
+    this.done = new Set(); // districts whose completed quests are unfolded
+    try { this.done = new Set(JSON.parse(localStorage.getItem("completed.open") ?? "[]")); } catch {}
     if (!props()?.demo && !checking()) this.wt.start(cx);
   }
 
@@ -59,6 +61,39 @@ export default class Tableau {
     };
     return v_flex().gap(0).pt(2).child(head).when(open, (e) => e.children(w.list.map(row))
       .when(w.more > 0, (e) => e.child(txt(t("wtMore", w.more), 12, P.dim, 700).pl(17))));
+  }
+
+  // Completed quests (settled tabs): folded by default under the open ones. Click one: resume it.
+  completed(sp, all) {
+    const done = sp.tabs.filter((x) => x.settled && !x.active);
+    if (!done.length) return null;
+    const open = this.done.has(sp.id);
+    const head = h_flex().id(`accomplies-${sp.id}`).h(22).px(5).gap(5).items_center().cursor_pointer().rounded(2)
+      .hover((s) => s.bg("#ffffff10"))
+      .tooltip(t("completedTip"))
+      .on_click((_e, cx) => {
+        open ? this.done.delete(sp.id) : this.done.add(sp.id);
+        try { localStorage.setItem("completed.open", JSON.stringify([...this.done])); } catch {}
+        cx.notify();
+      })
+      .child(txt(open ? "▾" : "▸", 12, P.dim, 700).w(10).flex_none())
+      .child(txt(t("completed", done.length), 13, P.muted, 800).flex_1());
+    const row = (tab) => {
+      const heroes = all.filter((a) => a.tab === tab.id);
+      const name = tab.named ? tab.name : (heroes[0]?.title && heroes[0].title !== heroes[0].program?.name ? heroes[0].title : t("questN", tab.index));
+      return h_flex().id(`accomplie-${tab.id}`).h(24).pl(17).pr(4).gap(6).items_center().rounded(2).cursor_pointer()
+        .hover((s) => s.bg("#ffffff10"))
+        .tooltip(t("completedQuestTip"))
+        .on_click(() => { run("tab.unsettle", { id: tab.id }); if (!sp.active) run("space.select", { id: sp.id }); run("tab.select", { id: tab.id }); })
+        .on_mouse_down("right", (_e, cx) => {
+          cx.stop_propagation();
+          openOverlay({ mod: "world-of-codecraft", kind: "popup", ...QUEST_MENU, props: { role: "questmenu", tab: tab.id, space: sp.id } });
+        })
+        .child(txt("✓", 12, P.goldLo, 800).flex_none())
+        .child(txt(clip(name, 32), 13, P.dim, 700).flex_1().min_w(0).truncate())
+        .child(h_flex().flex_none().gap(2).opacity(0.6).children(heroes.slice(0, 3).map((a) => portrait(heroOf(a.address, a.program), 22))));
+    };
+    return v_flex().gap(0).pt(2).child(head).when(open, (e) => e.children(done.map(row)));
   }
 
   heading(text, extra) {
@@ -104,7 +139,7 @@ export default class Tableau {
   district(sp, all) {
     const d = district(sp);
     const heroes = all.filter((a) => a.space === sp.id);
-    const tabs = sp.tabs.filter((t) => !t.settled || t.active);
+    const tabs = sp.tabs.filter((t) => !t.settled || t.active); // a shown tab is never settled for long
     const sessions = sp.tabs.reduce((n, t) => n + (t.panes || 0), 0);
     const counts = ORDER.map((st) => [st, heroes.filter((a) => a.status === st).length]).filter(([, n]) => n > 0);
     const blocked = heroes.some((a) => a.status === "blocked");
@@ -127,6 +162,8 @@ export default class Tableau {
     let inner = v_flex().relative().gap(2).p(6).child(head);
     if (counts.length) inner = inner.child(h_flex().flex_wrap().gap(4).px(2).pb(3).children(counts.map(([st, n]) => this.chip(st, n))));
     inner = inner.child(v_flex().gap(1).children(tabs.map((t) => this.quest(sp, t, heroes.filter((a) => a.tab === t.id)))));
+    const done = this.completed(sp, all);
+    if (done) inner = inner.child(done);
     const trees = this.worktrees(sp);
     if (trees) inner = inner.child(trees);
 
