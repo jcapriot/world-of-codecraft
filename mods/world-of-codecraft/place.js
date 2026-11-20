@@ -23,6 +23,7 @@ import { Activites } from "./activite.js";
 import { Ambiance, behind } from "./ambiance.js";
 import { DEMO_LOG } from "./demo.js";
 import { commandPanel, MINI_INSET } from "./commande.js";
+import { renameUnit } from "./unitname.js";
 import { EXT } from "./terre-data.js";
 
 const ART = "mods/world-of-codecraft/art";
@@ -247,6 +248,7 @@ export default class Place {
     el = el.child(div().id(`clic-${a.address}`).absolute().left(-ax).top(-ay).w(w).h(hh).cursor_pointer()
       .tooltip(tr("unitTip", heroTitle(h), h.prog, `${a.space_name ?? ""} › ${a.tab_name ?? ""}`, QUEST[st]?.mot ?? tr("onGuardTerm")))
       .on_mouse_down("left", stop)
+      .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); if (!a.demoHero) renameUnit(a.address); })
       .on_click(() => (a.guard ? run("pane.focus", { pane: a.pane }) : run("agent.focus", { terminal: a.address }))));
 
     const head = -ay;

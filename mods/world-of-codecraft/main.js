@@ -14,13 +14,15 @@ import Place from "./place.js";
 import PaneHead from "./pane.js";
 import { Commande } from "./commande.js";
 import { rail } from "./ui.js";
+import { QuestMenu } from "./questmenu.js";
+import { UnitName } from "./unitname.js";
 
 class Rail {
   init(pr) { this.side = pr.side ?? "top"; }
   render() { return rail(this.side); }
 }
 
-const ROLES = { fronton: Fronton, tableau: Tableau, place: Place, pane: PaneHead, rail: Rail, commande: Commande };
+const ROLES = { fronton: Fronton, tableau: Tableau, place: Place, pane: PaneHead, rail: Rail, commande: Commande, questmenu: QuestMenu, unitname: UnitName };
 
 export default class Valbrume extends View {
   init(p, cx) {

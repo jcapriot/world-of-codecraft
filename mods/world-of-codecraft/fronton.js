@@ -29,6 +29,17 @@ function setMode(on) {
   run("layout.resize", on ? { id: "arene", px: 400 } : { id: "arene", weight: 1 });
 }
 
+// The side panel (layout column "panel", stack "panel-body"): Herdr's Files and Changes.
+// A button shows its panel, or hides the column when that panel is already showing.
+function panelOn(id) {
+  try { const p = node(layout(), "panel"), b = node(layout(), "panel-body"); return Boolean(p && !p.hidden && b?.active === id); } catch { return false; }
+}
+function togglePanel(id) {
+  if (panelOn(id)) return run("layout.hide", { id: "panel" });
+  run("layout.select", { stack: "panel-body", child: id });
+  run("layout.show", { id: "panel" });
+}
+
 const PW = 136; // plaque width
 
 export default class Fronton {
@@ -71,6 +82,13 @@ export default class Fronton {
     return button("mode", txt(on ? t("workshop") : t("immersion"), 16, P.cream, 800),
       () => setMode(!on),
       { h: 28, tip: on ? t("workshopTip") : t("immersionTip") });
+  }
+
+  /** Files / Changes: open that panel beside the terminal, or close it. Lit gold while open. */
+  panelButton(id) {
+    const on = panelOn(id);
+    return button(`panneau-${id}`, txt(t(id === "files" ? "panelFiles" : "panelChanges"), 16, on ? P.goldHi : P.cream, 800),
+      () => togglePanel(id), { h: 28, tip: t(id === "files" ? "panelFilesTip" : "panelChangesTip") });
   }
 
   render(_cx) {
@@ -138,6 +156,8 @@ export default class Fronton {
         .when(resets.length > 0, (el) => el.child(this.plaque("res-foire", pic("ic-sablier", 22, 28), fair || "—", t("untilFair"), t("fairTip"))))
         .child(div().flex_1().min_w(0).flex().justify_center().when(Boolean(scroll), (el) => el.child(scroll)))
         .when(Boolean(alert), (el) => el.child(alert))
+        .child(this.panelButton("files"))
+        .child(this.panelButton("changes"))
         .child(this.mode())
         .child(hour));
   }

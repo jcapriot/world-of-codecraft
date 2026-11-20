@@ -4,7 +4,7 @@
 
 import { div, image, svg, PathBuilder, Background } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { home, readTextFile, panes } from "herdr";
+import { home, readTextFile, panes, terminals, shared } from "herdr";
 import { t, tbl } from "./i18n.js";
 
 export const ART = "mods/world-of-codecraft/art";
@@ -79,13 +79,31 @@ export function classOf(program) {
   return "voleur";
 }
 
+// A name given with « Rename » is the terminal's label wocc.name (hc label t3 wocc.name=…): it
+// lives on the terminal, every Herdr window sees it, and it ends with the terminal. Read through
+// a short cache, since heroOf runs for every unit on every animation frame.
+export const NAME_LABEL = "wocc.name";
+export const NAMES_KEY = "wocc.names"; // bumped after a rename: every copy redraws and reads afresh
+let named = { at: 0, v: null, map: new Map() };
+export function customName(address) {
+  const now = Date.now();
+  const v = shared(NAMES_KEY) ?? null;
+  if (now - named.at > 200 || v !== named.v) {
+    const map = new Map();
+    try { for (const x of terminals()) { const n = x.labels?.[NAME_LABEL]; if (n) map.set(x.address, n); } } catch {}
+    named = { at: now, v, map };
+  }
+  return named.map.get(address) ?? null;
+}
+export const forgetNames = () => { named.at = 0; };
+
 /** Everything that makes a terminal a villager-hero, stable for its address. */
 export function heroOf(address, program) {
   const h = hash(address);
   const race = RACES[h % RACES.length];
   const cls = classOf(program);
   const list = NAMES[race];
-  const name = list[(h >>> 5) % list.length];
+  const name = customName(address) ?? list[(h >>> 5) % list.length];
   return { race, cls, name, prog: program?.name ?? "agent", sprite: `${ART}/h-${race}-${cls}`, item: CLASSES[cls].item };
 }
 

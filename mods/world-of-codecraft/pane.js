@@ -9,6 +9,7 @@ import { panes, props, run } from "herdr";
 import { heroOf, heroTitle, CLASSES, RACE_FR, QUEST, folder } from "./kit.js";
 import { t } from "./i18n.js";
 import { P, bar, txt, gem, mark, portrait, iconButton } from "./ui.js";
+import { renameUnit } from "./unitname.js";
 
 const TONE = { blocked: P.blocked, done: P.done, working: P.working, idle: P.idle };
 
@@ -27,6 +28,7 @@ export default class PaneHead {
     const where = folder(p.cwd);
     return div().id(`entete-${me}`).size_full().relative().overflow_hidden()
       .on_click(() => run("pane.focus", { pane: me }))
+      .on_mouse_down("right", (_e, cx) => { if (h) { cx.stop_propagation(); renameUnit(p.terminal); } })
       .children(bar(p.focused ? "entete-focus" : "entete"))
       .child(h_flex().absolute().left(16).right(16).top(0).h(28).gap(7).items_center()
         .when(Boolean(h), (el) => el.child(portrait(h, 26)))

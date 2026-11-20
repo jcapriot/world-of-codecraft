@@ -12,6 +12,12 @@
         "id": "gauche"
       }
     },
-    "ctrl-shift-i": "world-of-codecraft.mode"
+    "ctrl-shift-i": "world-of-codecraft.mode",
+    "cmd-shift-g": {
+      "command": "layout.toggle",
+      "args": {
+        "id": "panel"
+      }
+    }
   }
 }

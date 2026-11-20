@@ -10,6 +10,7 @@ import { CLASSES, RACE_FR, QUEST, heroDesc } from "./kit.js";
 import { gradient } from "./kit.js";
 import { t } from "./i18n.js";
 import { P, frame, frameT, bar, pic, txt, title, button, gem, mark, portraitCard, well } from "./ui.js";
+import { renameUnit } from "./unitname.js";
 
 const TONE = { blocked: P.blocked, done: P.done, working: P.working, idle: P.idle, garde: P.guard };
 export const MINI_INSET = 38; // the minimap is PANEL - 38 wide (frame 14 x 2 + iron frame 5 x 2)
@@ -31,7 +32,8 @@ function card(sel) {
   return h_flex().flex_1().min_h(0).gap(8).px(2).pt(8).items_start()
     .child(portraitCard(h))
     .child(v_flex().flex_1().min_w(0).gap(3)
-      .child(title(h.name, 19, P.goldHi).truncate())
+      .child(title(h.name, 19, P.goldHi).truncate().id("unite-nom").cursor_pointer().tooltip(t("unitRenameTip"))
+        .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); if (!a.demoHero && a.address !== DEMO_SELECTED.address) renameUnit(a.address); }))
       .child(txt(heroDesc(h), 15, P.cream, 700).truncate())
       .child(txt(h.prog, 14, P.muted, 700).truncate())
       .child(h_flex().gap(4).items_center().child(mark(st) ?? gem(st, true)).child(txt(word, 15, TONE[st] ?? P.idle, 800)))

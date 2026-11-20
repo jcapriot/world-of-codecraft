@@ -8,7 +8,9 @@
 
 import { div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { spaces, agents, run, props } from "herdr";
+import { spaces, agents, run, props, openOverlay, checking } from "herdr";
+import { Worktrees } from "./worktrees.js";
+import { QUEST_MENU } from "./questmenu.js";
 import { district, clip, heroOf } from "./kit.js";
 import { gradient } from "./kit.js";
 import { t } from "./i18n.js";
@@ -20,6 +22,44 @@ const COLOR = { blocked: P.blocked, done: P.done, working: P.working, idle: P.id
 const STATE = new Proxy({}, { get: (_o, k) => ({ mot: t("board")[k], color: COLOR[k] }) });
 
 export default class Tableau {
+  init(_props, cx) {
+    this.wt = new Worktrees();
+    this.folded = new Set();
+    try { this.folded = new Set(JSON.parse(localStorage.getItem("worktrees.folded") ?? "[]")); } catch {}
+    if (!props()?.demo && !checking()) this.wt.start(cx);
+  }
+
+  // The district's worktrees: a fold-out list under its quests. Click one: a new quest (shell) there.
+  worktrees(sp) {
+    const w = this.wt?.of(sp);
+    if (!w || !w.list.length) return null;
+    const open = !this.folded.has(sp.id);
+    const head = h_flex().id(`arbres-${sp.id}`).h(22).px(5).gap(5).items_center().cursor_pointer().rounded(2)
+      .hover((s) => s.bg("#ffffff10"))
+      .tooltip(t("worktreesTip"))
+      .on_click((_e, cx) => {
+        open ? this.folded.add(sp.id) : this.folded.delete(sp.id);
+        try { localStorage.setItem("worktrees.folded", JSON.stringify([...this.folded])); } catch {}
+        cx.notify();
+      })
+      .child(txt(open ? "▾" : "▸", 12, P.dim, 700).w(10).flex_none())
+      .child(txt(t("worktrees", w.list.length + w.more), 13, P.muted, 800).flex_1());
+    const row = (x) => {
+      const fg = x.prunable ? P.faint : x.scratch ? P.dim : P.parch;
+      return h_flex().id(`arbre-${sp.id}-${x.path}`).h(22).pl(17).pr(4).gap(5).items_center().rounded(2).cursor_pointer()
+        .hover((s) => s.bg("#ffffff10"))
+        .tooltip(t("worktreeTip", x.path, x.branch ?? (x.detached ? t("detached") : "?"), x.scratch, x.prunable))
+        .on_click(() => { if (!x.prunable) run("tab.new", { space: sp.id, folder: x.path, name: x.name }); })
+        .child(txt("⎇", 12, x.scratch ? P.faint : P.goldLo, 700).flex_none())
+        .child(txt(x.branch ?? (x.detached ? t("detached") : x.name), 13, fg, 700).flex_1().min_w(0).truncate())
+        .when(x.dirty > 0, (e) => e.child(txt(`●${x.dirty}`, 12, P.done, 800).flex_none().tooltip(t("wtDirty", x.dirty))))
+        .when(x.ahead > 0, (e) => e.child(txt(`↑${x.ahead}`, 12, P.working, 800).flex_none().tooltip(t("wtAhead", x.ahead))))
+        .when(x.prunable, (e) => e.child(txt(t("wtGone"), 12, P.faint, 700).flex_none()));
+    };
+    return v_flex().gap(0).pt(2).child(head).when(open, (e) => e.children(w.list.map(row))
+      .when(w.more > 0, (e) => e.child(txt(t("wtMore", w.more), 12, P.dim, 700).pl(17))));
+  }
+
   heading(text, extra) {
     return div().relative().flex_none().h(30)
       .children(bar("bandeau"))
@@ -47,6 +87,10 @@ export default class Tableau {
       .bg(on ? P.parch : st === "blocked" ? "#3a1216" : "#00000000").hover((s) => s.bg(on ? P.parch : "#ffffff10"))
       .tooltip(t("questTip", tab.index, tab.name, tab.panes))
       .on_click(() => { if (!sp.active) run("space.select", { id: sp.id }); run("tab.select", { id: tab.id }); })
+      .on_mouse_down("right", (_e, cx) => {
+        cx.stop_propagation();
+        openOverlay({ mod: "world-of-codecraft", kind: "popup", ...QUEST_MENU, props: { role: "questmenu", tab: tab.id, space: sp.id } });
+      })
       .child(div().w(16).flex_none().flex().justify_center().child(mark(st) ?? (st ? gem(st, true) : div().size(5).rounded(1).bg(on ? P.inkSoft : P.faint))))
       .child(txt(clip(name, 32), 15, fg, on ? 800 : 700).flex_1().min_w(0).truncate())
       .when(tab.panes > 1, (e) => e.child(txt(`×${tab.panes}`, 14, on ? P.inkSoft : P.dim, 700).flex_none()))
@@ -82,6 +126,8 @@ export default class Tableau {
     let inner = v_flex().relative().gap(2).p(6).child(head);
     if (counts.length) inner = inner.child(h_flex().flex_wrap().gap(4).px(2).pb(3).children(counts.map(([st, n]) => this.chip(st, n))));
     inner = inner.child(v_flex().gap(1).children(tabs.map((t) => this.quest(sp, t, heroes.filter((a) => a.tab === t.id)))));
+    const trees = this.worktrees(sp);
+    if (trees) inner = inner.child(trees);
 
     let card = div().id(`quartier-${sp.id}`).relative().flex_none().mx(2).mt(6)
       .bg(sp.active ? P.enamelHi : P.enamel)
@@ -96,6 +142,7 @@ export default class Tableau {
     const all = demo ? DEMO_AGENTS : agents();
     const list = demo ? DEMO_SPACES : spaces();
     const sessions = list.reduce((n, sp) => n + sp.tabs.reduce((m, t) => m + (t.panes || 0), 0), 0);
+    if (!demo) this.wt?.watch(list, all);
     const T = frameT("cadre");
     const add = (id, label, tip, fn) => button(id, [pic("ic-plus", 11, 11), txt(label, 15, P.cream, 800)], fn, { tip }).flex_1();
     return div().id("tableau").size_full().relative().bg(P.leather)
