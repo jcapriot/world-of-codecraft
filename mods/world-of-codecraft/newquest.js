@@ -13,7 +13,23 @@ import { P, title, txt, well } from "./ui.js";
 const KNOWN = "new-menu.agents";
 const ROW = 28;
 
-export const newQuestSize = (n) => ({ width: 240, height: Math.min(420, 70 + Math.max(2, n + 1) * (ROW + 2)) });
+// n: installed agents, null when not known yet (room for a few, the list scrolls).
+export const newQuestSize = (n) => ({ width: 240, height: Math.min(420, 96 + Math.max(1, n ?? 6) * (ROW + 2)) });
+
+/** Ask a machine which agents it has, ahead of the menu, so the menu opens at the right size. */
+export async function prefetchAgents(machine) {
+  const where = machine ?? "";
+  try {
+    const list = await knownAgents({ on: machine ?? undefined });
+    setShared(KNOWN, { ...(shared(KNOWN) ?? {}), [where]: list });
+  } catch {}
+}
+
+/** Installed agents for a machine from the cache, or null if never asked. */
+export function cachedInstalled(machine) {
+  const list = (shared(KNOWN) ?? {})[machine ?? ""];
+  return list ? list.filter((a) => a.installed).length : null;
+}
 
 export class NewQuest {
   init(_props, cx) {

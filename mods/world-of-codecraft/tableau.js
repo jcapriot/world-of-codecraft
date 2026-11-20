@@ -12,7 +12,7 @@ import { spaces, agents, run, props, openOverlay, checking, shared } from "herdr
 import { Worktrees } from "./worktrees.js";
 import { PastQuests, ago } from "./pastquests.js";
 import { QUEST_MENU } from "./questmenu.js";
-import { newQuestSize } from "./newquest.js";
+import { newQuestSize, prefetchAgents, cachedInstalled } from "./newquest.js";
 import { district, clip, heroOf } from "./kit.js";
 import { gradient } from "./kit.js";
 import { t } from "./i18n.js";
@@ -35,7 +35,10 @@ export default class Tableau {
     try { this.pastOpen = new Set(JSON.parse(localStorage.getItem("past.open") ?? "[]")); } catch {}
     this.done = new Set(); // districts whose completed quests are unfolded
     try { this.done = new Set(JSON.parse(localStorage.getItem("completed.open") ?? "[]")); } catch {}
-    if (!props()?.demo && !checking()) this.wt.start(cx);
+    if (!props()?.demo && !checking()) {
+      this.wt.start(cx);
+      cx.spawn(async () => { for (const m of new Set([null, ...spaces().map((s) => s.machine ?? null)])) await prefetchAgents(m); });
+    }
   }
 
   // The district's worktrees: a fold-out list under its quests. Click one: a new quest (shell) there.
@@ -262,8 +265,7 @@ export default class Tableau {
           .child(h_flex().mx(2).mt(10).gap(6)
             .child(add("nouvelle-quete", t("newQuest"), t("newQuestTip"), () => {
               const sp = list.find((s) => s.active);
-              const known = (shared("new-menu.agents") ?? {})[sp?.machine ?? ""] ?? [];
-              openOverlay({ mod: "world-of-codecraft", kind: "popup", ...newQuestSize(known.filter((a) => a.installed).length), props: { role: "newquest", space: sp?.id } });
+              openOverlay({ mod: "world-of-codecraft", kind: "popup", ...newQuestSize(cachedInstalled(sp?.machine)), props: { role: "newquest", space: sp?.id } });
             }))
             .child(add("nouveau-quartier", t("newDistrict"), t("newDistrictTip"), () => run("space.new", {}))))))
       .children(frame("cadre"));
