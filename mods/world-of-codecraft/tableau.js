@@ -260,14 +260,16 @@ export default class Tableau {
       .child(gradient("#2b1e16", "#100b0a", 165))
       .child(v_flex().absolute().left(T).right(T).top(T).bottom(T)
         .child(this.heading(t("districts"), t("sessions", sessions)))
-        .child(v_flex().id("quartiers").flex_1().min_h(0).overflow_y_scrollbar().px(2).pb(10)
-          .children(list.map((sp) => this.district(sp, all, cx)))
-          .child(h_flex().mx(2).mt(10).gap(6)
+        .child(v_flex().id("quartiers").flex_1().min_h(0).overflow_y_scrollbar().px(2).pb(8)
+          .children(list.map((sp) => this.district(sp, all, cx))))
+        // pinned under the list, not scrolled with it
+        .child(div().flex_none().mx(4).h(1).bg(P.bronze))
+        .child(h_flex().flex_none().mx(4).pt(8).pb(4).gap(6)
             .child(add("nouvelle-quete", t("newQuest"), t("newQuestTip"), () => {
               const sp = list.find((s) => s.active);
               openOverlay({ mod: "world-of-codecraft", kind: "popup", ...newQuestSize(cachedInstalled(sp?.machine)), props: { role: "newquest", space: sp?.id } });
             }))
-            .child(add("nouveau-quartier", t("newDistrict"), t("newDistrictTip"), () => run("space.new", {}))))))
+            .child(add("nouveau-quartier", t("newDistrict"), t("newDistrictTip"), () => run("space.new", {})))))
       .children(frame("cadre"));
   }
 }
