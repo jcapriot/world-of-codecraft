@@ -8,9 +8,10 @@
 
 import { div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { spaces, agents, run, props, openOverlay, checking } from "herdr";
+import { spaces, agents, run, props, openOverlay, checking, shared } from "herdr";
 import { Worktrees } from "./worktrees.js";
 import { QUEST_MENU } from "./questmenu.js";
+import { newQuestSize } from "./newquest.js";
 import { district, clip, heroOf } from "./kit.js";
 import { gradient } from "./kit.js";
 import { t } from "./i18n.js";
@@ -152,7 +153,11 @@ export default class Tableau {
         .child(v_flex().id("quartiers").flex_1().min_h(0).overflow_y_scrollbar().px(2).pb(10)
           .children(list.map((sp) => this.district(sp, all)))
           .child(h_flex().mx(2).mt(10).gap(6)
-            .child(add("nouvelle-quete", t("newQuest"), t("newQuestTip"), () => run("tab.new", {})))
+            .child(add("nouvelle-quete", t("newQuest"), t("newQuestTip"), () => {
+              const sp = list.find((s) => s.active);
+              const known = (shared("new-menu.agents") ?? {})[sp?.machine ?? ""] ?? [];
+              openOverlay({ mod: "world-of-codecraft", kind: "popup", ...newQuestSize(known.filter((a) => a.installed).length), props: { role: "newquest", space: sp?.id } });
+            }))
             .child(add("nouveau-quartier", t("newDistrict"), t("newDistrictTip"), () => run("space.new", {}))))))
       .children(frame("cadre"));
   }

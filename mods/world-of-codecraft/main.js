@@ -15,6 +15,7 @@ import PaneHead from "./pane.js";
 import { Commande } from "./commande.js";
 import { rail } from "./ui.js";
 import { QuestMenu } from "./questmenu.js";
+import { NewQuest } from "./newquest.js";
 import { UnitName } from "./unitname.js";
 
 class Rail {
@@ -22,7 +23,7 @@ class Rail {
   render() { return rail(this.side); }
 }
 
-const ROLES = { fronton: Fronton, tableau: Tableau, place: Place, pane: PaneHead, rail: Rail, commande: Commande, questmenu: QuestMenu, unitname: UnitName };
+const ROLES = { fronton: Fronton, tableau: Tableau, place: Place, pane: PaneHead, rail: Rail, commande: Commande, questmenu: QuestMenu, unitname: UnitName, newquest: NewQuest };
 
 export default class Valbrume extends View {
   init(p, cx) {
