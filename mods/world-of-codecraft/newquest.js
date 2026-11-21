@@ -14,7 +14,7 @@ const KNOWN = "new-menu.agents";
 const ROW = 28;
 
 // n: installed agents, null when not known yet (room for a few, the list scrolls).
-export const newQuestSize = (n) => ({ width: 240, height: Math.min(420, 96 + Math.max(1, n ?? 6) * (ROW + 2)) });
+export const newQuestSize = (n) => ({ width: 240, height: Math.min(440, 130 + Math.max(2, n ?? 6) * ROW) });
 
 /** Ask a machine which agents it has, ahead of the menu, so the menu opens at the right size. */
 export async function prefetchAgents(machine) {
@@ -92,7 +92,8 @@ export class NewQuest {
     if (this.at >= list.length) this.at = Math.max(0, list.length - 1);
     const [shell, ...agents] = list;
     const note = this.failed ? t("nqFailed") : this.agents.length === 0 ? t("nqChecking") : agents.length === 0 ? t("nqNone") : null;
-    return well(v_flex().id("newquest").track_focus(this.handle).size_full().p(6).gap(2),
+    // one scrolling column: if the popup is short, it scrolls rather than squeezing the agents out
+    return well(v_flex().id("newquest").track_focus(this.handle).size_full().overflow_y_scrollbar().p(6).gap(2),
       { bg: P.night, lit: P.bronze })
       .on_key_down((e, cx) => {
         if (e.modifiers?.control || e.modifiers?.platform || e.modifiers?.alt) return;
@@ -108,8 +109,7 @@ export class NewQuest {
       .child(div().mx(8).mb(2).h(1).flex_none().bg(P.bronze))
       .child(this.row(shell, 0, 0))
       .child(div().px(10).pt(6).pb(2).child(txt(t("nqAgents"), 13, P.muted, 800)))
-      .child(v_flex().id("nq-agents").flex_1().min_h(0).overflow_y_scrollbar().gap(0)
-        .children(agents.map((a, i) => this.row(a, i + 1, i + 1)))
-        .when(Boolean(note), (e) => e.child(div().px(10).py(4).child(txt(note, 14, P.dim, 700)))));
+      .children(agents.map((a, i) => this.row(a, i + 1, i + 1)))
+      .when(Boolean(note), (e) => e.child(div().px(10).py(4).child(txt(note, 14, P.dim, 700))));
   }
 }
