@@ -29,7 +29,14 @@ old = sorted((os.path.join(out, n) for n in os.listdir(out)), key=os.path.getmti
 for q in old[keep:]:
     try: os.remove(q)
     except Exception: pass
-print(name)
+w = h = 0
+try:  # pixel size, so the window can fit the picture itself (sips: macOS; svg has none)
+    import subprocess
+    o = subprocess.run(["sips", "-g", "pixelWidth", "-g", "pixelHeight", p], capture_output=True, text=True).stdout
+    w = int(o.split("pixelWidth:")[1].split()[0]); h = int(o.split("pixelHeight:")[1].split()[0])
+except Exception:
+    pass
+print(name, w, h)
 `;
 
 function where(raw) {
@@ -60,10 +67,11 @@ export async function handleLink({ link, source }) {
       r = await exec("python3", ["-c", COPY, path, out, ext, String(KEEP)], { timeout: 20_000 });
     }
     if (r.code !== 0) throw new Error((r.stderr || `exit ${r.code}`).trim().split("\n").pop());
-    const src = `${DIR}/${r.stdout.trim()}`;
+    const [file, w, h] = r.stdout.trim().split(/\s+/);
+    const src = `${DIR}/${file}`;
     openOverlay({
       mod: "world-of-codecraft", kind: "window", key: "picture", width: 0.6, height: 0.75,
-      props: { role: "picture", src, path, machine },
+      props: { role: "picture", src, path, machine, w: Number(w) || 0, h: Number(h) || 0 },
     });
     return "handled";
   } catch (e) {
