@@ -11,6 +11,7 @@ import { h_flex, v_flex } from "gpui-base";
 import { spaces, agents, run, props, openOverlay, checking, shared } from "herdr";
 import { Worktrees } from "./worktrees.js";
 import { PastQuests, ago } from "./pastquests.js";
+import { SideQuests, span } from "./sidequests.js";
 import { QUEST_MENU } from "./questmenu.js";
 import { newQuestSize, prefetchAgents, cachedInstalled } from "./newquest.js";
 import { district, clip, heroOf } from "./kit.js";
@@ -37,8 +38,11 @@ export default class Tableau {
     try { this.done = new Set(JSON.parse(localStorage.getItem("completed.open") ?? "[]")); } catch {}
     this.shut = new Set(); // districts folded down to their head
     try { this.shut = new Set(JSON.parse(localStorage.getItem("districts.shut") ?? "[]")); } catch {}
+    this.side = new SideQuests();
+    this.sideAll = new Set(); // quests whose older side quests are shown too
     if (!props()?.demo && !checking()) {
       this.wt.start(cx);
+      cx.timer.every(2000, () => this.side.tick([...new Set(spaces().map((s) => s.machine ?? null))], cx));
       cx.spawn(async () => { for (const m of new Set([null, ...spaces().map((s) => s.machine ?? null)])) await prefetchAgents(m); });
     }
   }
@@ -225,6 +229,45 @@ export default class Tableau {
     return line;
   }
 
+  // Side quests: sub-agents a quest's heroes sent out, branching under it. Working ones always show,
+  // finished ones from the last half hour (a few), the rest behind "+n earlier".
+  sideQuests(sp, tab, heroes) {
+    const list = this.side.of(heroes);
+    if (!list.length) return null;
+    const now = Date.now() / 1000;
+    const all = this.sideAll.has(tab.id);
+    const recent = list.filter((x) => x.state === "working" || x.state === "blocked" || x.kind === "herdr" || now - (x.end ?? now) < 1800);
+    const shown = all ? list.slice(0, 20) : [...recent.filter((x) => x.state === "working" || x.kind === "herdr"), ...recent.filter((x) => !(x.state === "working" || x.kind === "herdr")).slice(0, 3)];
+    const hidden = list.length - shown.length;
+    const icon = (x) => x.state === "working" || x.state === "blocked" ? gem(x.state, true)
+      : txt(x.state === "done" ? "✓" : x.state === "idle" ? "•" : "✗", 12, x.state === "done" ? P.done : P.faint, 800);
+    const row = (x, i) => {
+      const live = x.state === "working";
+      const when = x.kind === "herdr" ? "" : live ? span(now - x.start) : ago(x.end);
+      const fg = live ? P.parch : x.state === "done" ? P.muted : P.dim;
+      return h_flex().id(`side-${tab.id}-${x.id}`).h(22).pl(12 + 10 * Math.min(2, x.depth - 1)).pr(6).gap(5).items_center().rounded(2).cursor_pointer()
+        .hover((s) => s.bg("#ffffff10"))
+        .tooltip(t("sideTip", x.type, x.desc, x.prompt, t("sideState")[x.state] ?? x.state, x.kind === "herdr" ? x.address : live ? span(now - x.start) : span((x.end ?? now) - (x.start ?? now))))
+        .on_click(() => {
+          if (x.kind === "herdr") return run("terminal.peek", { terminal: x.address });
+          if (!sp.active) run("space.select", { id: sp.id });
+          run("tab.select", { id: tab.id });
+        })
+        .child(txt("↳", 12, P.bronze, 700).flex_none())
+        .child(div().w(15).flex_none().flex().justify_center().child(icon(x)))
+        // the default type says nothing, so only named ones (Explore, Plan, ...) get a label
+        .when(x.type !== "general-purpose" && x.type !== "agent", (e) => e.child(txt(x.type, 12, live ? P.gold : P.goldLo, 800).flex_none()))
+        .child(txt(x.desc || x.prompt || "", 13, fg, 700).flex_1().min_w(0).truncate())
+        .when(Boolean(when), (e) => e.child(txt(when, 12, P.faint, 700).flex_none()));
+    };
+    let box = v_flex().gap(0).children(shown.map(row));
+    if (hidden > 0 || all) box = box.child(h_flex().id(`side-more-${tab.id}`).h(18).pl(29).items_center().cursor_pointer()
+      .hover((s) => s.bg("#ffffff10"))
+      .on_click((_e, cx) => { all ? this.sideAll.delete(tab.id) : this.sideAll.add(tab.id); cx.notify(); })
+      .child(txt(all ? t("pastFewer") : t("sideMore", hidden), 12, P.faint, 700)));
+    return box;
+  }
+
   district(sp, all, cx) {
     const d = district(sp);
     const heroes = all.filter((a) => a.space === sp.id);
@@ -263,7 +306,11 @@ export default class Tableau {
     let inner = v_flex().relative().gap(2).p(6).child(head);
     if (counts.length) inner = inner.child(h_flex().flex_wrap().gap(4).px(2).pb(3).children(counts.map(([st, n]) => this.chip(st, n))));
     if (shut) return this.card(sp, inner, kind, blocked);
-    inner = inner.child(v_flex().gap(1).children(tabs.map((t) => this.quest(sp, t, heroes.filter((a) => a.tab === t.id)))));
+    inner = inner.child(v_flex().gap(1).children(tabs.flatMap((t) => {
+      const mine = heroes.filter((a) => a.tab === t.id);
+      const side = this.sideQuests(sp, t, mine);
+      return side ? [this.quest(sp, t, mine), side] : [this.quest(sp, t, mine)];
+    })));
     const done = this.completed(sp, all);
     if (done) inner = inner.child(done);
     const past = this.pastQuests(sp, cx);
