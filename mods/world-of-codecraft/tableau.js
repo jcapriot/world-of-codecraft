@@ -35,6 +35,8 @@ export default class Tableau {
     try { this.pastOpen = new Set(JSON.parse(localStorage.getItem("past.open") ?? "[]")); } catch {}
     this.done = new Set(); // districts whose completed quests are unfolded
     try { this.done = new Set(JSON.parse(localStorage.getItem("completed.open") ?? "[]")); } catch {}
+    this.shut = new Set(); // districts folded down to their head
+    try { this.shut = new Set(JSON.parse(localStorage.getItem("districts.shut") ?? "[]")); } catch {}
     if (!props()?.demo && !checking()) {
       this.wt.start(cx);
       cx.spawn(async () => { for (const m of new Set([null, ...spaces().map((s) => s.machine ?? null)])) await prefetchAgents(m); });
@@ -167,12 +169,28 @@ export default class Tableau {
     return v_flex().gap(0).pt(2).child(head).child(body);
   }
 
-  heading(text, extra) {
+  heading(text, extra, tail) {
     return div().relative().flex_none().h(30)
       .children(bar("bandeau"))
       .child(h_flex().absolute().left(24).right(24).top(0).bottom(0).gap(8).items_center()
         .child(title(text, 17, P.goldHi).flex_1())
-        .when(Boolean(extra), (e) => e.child(txt(extra, 14, P.muted, 700))));
+        .when(Boolean(extra), (e) => e.child(txt(extra, 14, P.muted, 700)))
+        .when(Boolean(tail), (e) => e.child(tail)));
+  }
+
+  saveShut() { try { localStorage.setItem("districts.shut", JSON.stringify([...this.shut])); } catch {} }
+
+  // ▾/▸ in the Districts heading: fold every district if any is open, else unfold them all.
+  foldAll(list) {
+    const anyOpen = list.some((sp) => !this.shut.has(sp.id));
+    return div().id("quartiers-plier").flex_none().w(16).h(22).flex().items_center().justify_center().rounded(2).cursor_pointer()
+      .hover((s) => s.bg("#ffffff14"))
+      .tooltip(anyOpen ? t("foldAll") : t("unfoldAll"))
+      .on_click((_e, cx) => {
+        if (anyOpen) list.forEach((sp) => this.shut.add(sp.id)); else this.shut.clear();
+        this.saveShut(); cx.notify();
+      })
+      .child(txt(anyOpen ? "▾" : "▸", 14, P.muted, 700));
   }
 
   // One state counter: a gem, the number, the word, on a flat enamel well.
@@ -215,12 +233,24 @@ export default class Tableau {
     const counts = ORDER.map((st) => [st, heroes.filter((a) => a.status === st).length]).filter(([, n]) => n > 0);
     const blocked = heroes.some((a) => a.status === "blocked");
     const kind = blocked ? "fin-rubis" : sp.active ? "fin-or" : "fin";
+    const shut = this.shut.has(sp.id);
 
     // the district's head: banner, name, sessions and heroes, the big counter
     const head = h_flex().id(`quartier-tete-${sp.id}`).h(46).pl(6).pr(4).gap(8).items_center().cursor_pointer()
       .hover((s) => s.bg("#ffffff08"))
       .tooltip(`${d.titre}${sp.machine ? ` @${sp.machine}` : ""} ${t("goThere")}`)
       .on_click(() => run("space.select", { id: sp.id }))
+      // fold the district down to this head (and its counters), or open it again
+      .child(div().id(`quartier-plier-${sp.id}`).flex_none().w(14).h(30).flex().items_center().justify_center().rounded(2)
+        .hover((s) => s.bg("#ffffff14"))
+        .tooltip(shut ? t("unfoldDistrict") : t("foldDistrict"))
+        .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+        .on_click((_e, cx) => {
+          cx.stop_propagation();
+          shut ? this.shut.delete(sp.id) : this.shut.add(sp.id);
+          this.saveShut(); cx.notify();
+        })
+        .child(txt(shut ? "▸" : "▾", 14, P.muted, 700)))
       .child(div().flex_none().mt(-6).child(banner(d)))
       .child(v_flex().flex_1().min_w(0).gap(0)
         .child(txt(`${d.num} · ${d.nom}`, 18, sp.active ? P.goldHi : P.cream, 800).truncate())
@@ -232,6 +262,7 @@ export default class Tableau {
 
     let inner = v_flex().relative().gap(2).p(6).child(head);
     if (counts.length) inner = inner.child(h_flex().flex_wrap().gap(4).px(2).pb(3).children(counts.map(([st, n]) => this.chip(st, n))));
+    if (shut) return this.card(sp, inner, kind, blocked);
     inner = inner.child(v_flex().gap(1).children(tabs.map((t) => this.quest(sp, t, heroes.filter((a) => a.tab === t.id)))));
     const done = this.completed(sp, all);
     if (done) inner = inner.child(done);
@@ -239,7 +270,10 @@ export default class Tableau {
     if (past) inner = inner.child(past);
     const trees = this.worktrees(sp);
     if (trees) inner = inner.child(trees);
+    return this.card(sp, inner, kind, blocked);
+  }
 
+  card(sp, inner, kind, blocked) {
     let card = div().id(`quartier-${sp.id}`).relative().flex_none().mx(2).mt(6)
       .bg(sp.active ? P.enamelHi : P.enamel)
       .child(inner)
@@ -259,7 +293,7 @@ export default class Tableau {
     return div().id("tableau").size_full().relative().bg(P.leather)
       .child(gradient("#2b1e16", "#100b0a", 165))
       .child(v_flex().absolute().left(T).right(T).top(T).bottom(T)
-        .child(this.heading(t("districts"), t("sessions", sessions)))
+        .child(this.heading(t("districts"), t("sessions", sessions), list.length ? this.foldAll(list) : null))
         .child(v_flex().id("quartiers").flex_1().min_h(0).overflow_y_scrollbar().px(2).pb(8)
           .children(list.map((sp) => this.district(sp, all, cx))))
         // pinned under the list, not scrolled with it
