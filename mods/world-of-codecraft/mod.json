@@ -1,1 +1,2 @@
-{ "place": "none", "title": "World of Codecraft" }
+{ "place": "none", "title": "World of Codecraft",
+  "link_handlers": [{ "kind": "file", "pattern": "(?i)\\.(png|jpe?g|gif|webp|svg|bmp)$" }] }

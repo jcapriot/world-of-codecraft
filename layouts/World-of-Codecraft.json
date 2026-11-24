@@ -2,6 +2,7 @@
   "id": "root",
   "type": "column",
   "titlebar": "none",
+  "link_handlers": ["world-of-codecraft"],
   "traffic_lights": [
     16,
     15

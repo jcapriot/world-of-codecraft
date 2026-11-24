@@ -17,13 +17,14 @@ import { rail } from "./ui.js";
 import { QuestMenu } from "./questmenu.js";
 import { NewQuest } from "./newquest.js";
 import { UnitName } from "./unitname.js";
+import { Picture } from "./picture.js";
 
 class Rail {
   init(pr) { this.side = pr.side ?? "top"; }
   render() { return rail(this.side); }
 }
 
-const ROLES = { fronton: Fronton, tableau: Tableau, place: Place, pane: PaneHead, rail: Rail, commande: Commande, questmenu: QuestMenu, unitname: UnitName, newquest: NewQuest };
+const ROLES = { fronton: Fronton, tableau: Tableau, place: Place, pane: PaneHead, rail: Rail, commande: Commande, questmenu: QuestMenu, unitname: UnitName, newquest: NewQuest, picture: Picture };
 
 export default class Valbrume extends View {
   init(p, cx) {
