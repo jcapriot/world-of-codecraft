@@ -80,7 +80,7 @@ for n in names:
                 else: state = "stopped"
                 prompt = (first.get("message") or {}).get("content")
                 if isinstance(prompt, list): prompt = " ".join(x.get("text", "") for x in prompt if isinstance(x, dict))
-                side.append({"id": os.path.basename(p)[6:-6], "type": meta.get("agentType") or "agent",
+                side.append({"id": os.path.basename(p)[6:-6], "path": p, "type": meta.get("agentType") or "agent",
                              "desc": meta.get("description") or "", "depth": meta.get("spawnDepth") or 1,
                              "prompt": " ".join(str(prompt or "").split())[:240], "state": state,
                              "start": iso(first.get("timestamp") or "") or st.st_mtime, "end": int(st.st_mtime)})

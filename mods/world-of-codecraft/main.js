@@ -18,13 +18,14 @@ import { QuestMenu } from "./questmenu.js";
 import { NewQuest } from "./newquest.js";
 import { UnitName } from "./unitname.js";
 import { Picture } from "./picture.js";
+import { Chronicle } from "./chronicle.js";
 
 class Rail {
   init(pr) { this.side = pr.side ?? "top"; }
   render() { return rail(this.side); }
 }
 
-const ROLES = { fronton: Fronton, tableau: Tableau, place: Place, pane: PaneHead, rail: Rail, commande: Commande, questmenu: QuestMenu, unitname: UnitName, newquest: NewQuest, picture: Picture };
+const ROLES = { fronton: Fronton, tableau: Tableau, place: Place, pane: PaneHead, rail: Rail, commande: Commande, questmenu: QuestMenu, unitname: UnitName, newquest: NewQuest, picture: Picture, chronicle: Chronicle };
 
 export default class Valbrume extends View {
   init(p, cx) {

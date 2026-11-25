@@ -250,8 +250,9 @@ export default class Tableau {
         .tooltip(t("sideTip", x.type, x.desc, x.prompt, t("sideState")[x.state] ?? x.state, x.kind === "herdr" ? x.address : live ? span(now - x.start) : span((x.end ?? now) - (x.start ?? now))))
         .on_click(() => {
           if (x.kind === "herdr") return run("terminal.peek", { terminal: x.address });
-          if (!sp.active) run("space.select", { id: sp.id });
-          run("tab.select", { id: tab.id });
+          // its transcript, in a window (one at a time: opening another replaces it)
+          openOverlay({ mod: "world-of-codecraft", kind: "window", key: "chronicle", width: 0.5, height: 0.8,
+            props: { role: "chronicle", path: x.path, machine: sp.machine ?? null, title: x.desc || x.type, type: x.type } });
         })
         .child(txt("↳", 12, P.bronze, 700).flex_none())
         .child(div().w(15).flex_none().flex().justify_center().child(icon(x)))
