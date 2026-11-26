@@ -40,6 +40,8 @@ export default class Tableau {
     try { this.shut = new Set(JSON.parse(localStorage.getItem("districts.shut") ?? "[]")); } catch {}
     this.side = new SideQuests();
     this.sideAll = new Set(); // quests whose older side quests are shown too
+    this.drag = null; // district being dragged by its head (to reorder), and the one it's over
+    this.over = null;
     if (!props()?.demo && !checking()) {
       this.wt.start(cx);
       cx.timer.every(2000, () => this.side.tick([...new Set(spaces().map((s) => s.machine ?? null))], cx));
@@ -284,6 +286,8 @@ export default class Tableau {
       .hover((s) => s.bg("#ffffff08"))
       .tooltip(`${d.titre}${sp.machine ? ` @${sp.machine}` : ""} ${t("goThere")}`)
       .on_click(() => run("space.select", { id: sp.id }))
+      // press here and drag onto another district to move this one there (Herdr's own spaces list does the same)
+      .on_mouse_down("left", () => { this.drag = sp.id; this.over = sp.id; })
       // fold the district down to this head (and its counters), or open it again
       .child(div().id(`quartier-plier-${sp.id}`).flex_none().w(14).h(30).flex().items_center().justify_center().rounded(2)
         .hover((s) => s.bg("#ffffff14"))
@@ -322,11 +326,32 @@ export default class Tableau {
   }
 
   card(sp, inner, kind, blocked) {
+    const list = spaces();
+    const from = this.drag === null ? -1 : list.findIndex((s) => s.id === this.drag);
+    const here = list.findIndex((s) => s.id === sp.id);
+    const target = from !== -1 && this.over === sp.id && this.drag !== sp.id;
     let card = div().id(`quartier-${sp.id}`).relative().flex_none().mx(2).mt(6)
       .bg(sp.active ? P.enamelHi : P.enamel)
       .child(inner)
-      .children(frame(kind));
-    if (blocked) card = card.loop("opacity", { from: 0.86, to: 1, period: 900 });
+      .children(frame(kind))
+      .when(this.drag === sp.id && this.over !== sp.id, (e) => e.opacity(0.5))
+      // where it would land: a gold bar above (moving up) or below (moving down)
+      .when(target, (e) => e.child(div().absolute().left(4).right(4).h(3).rounded(2).bg(P.goldHi)
+        .when(from < here, (b) => b.bottom(-5)).when(from > here, (b) => b.top(-5))))
+      .on_mouse_move((_e, cx) => {
+        if (this.drag === null) return;
+        const src = list.find((s) => s.id === this.drag);
+        // Herdr keeps each machine's spaces together, so a district only moves among its machine's
+        const over = src && (src.machine ?? null) === (sp.machine ?? null) ? sp.id : null;
+        if (this.over !== over) { this.over = over; cx.notify(); }
+      })
+      .on_mouse_up("left", (_e, cx) => {
+        const drag = this.drag, over = this.over;
+        this.drag = this.over = null;
+        if (drag !== null && over === sp.id && drag !== sp.id && here !== -1) run("space.move", { id: drag, index: here + 1 });
+        cx.notify();
+      });
+    if (blocked && !target) card = card.loop("opacity", { from: 0.86, to: 1, period: 900 });
     return card;
   }
 
@@ -339,6 +364,8 @@ export default class Tableau {
     const T = frameT("cadre");
     const add = (id, label, tip, fn) => button(id, [pic("ic-plus", 11, 11), txt(label, 15, P.cream, 800)], fn, { tip }).flex_1();
     return div().id("tableau").size_full().relative().bg(P.leather)
+      // a drag let go anywhere else is dropped
+      .on_mouse_up("left", (_e, cx) => { if (this.drag !== null) { this.drag = this.over = null; cx.notify(); } })
       .child(gradient("#2b1e16", "#100b0a", 165))
       .child(v_flex().absolute().left(T).right(T).top(T).bottom(T)
         .child(this.heading(t("districts"), t("sessions", sessions), list.length ? this.foldAll(list) : null))
